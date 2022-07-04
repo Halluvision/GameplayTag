@@ -34,12 +34,12 @@ namespace Halluvision.GameplayTag
 
             var allItems = new List<GameplayTagTreeViewItem>();
 
-            foreach (GameplayTag _tag in GameplayTagCollection.Instance.tags)
+            foreach (GameplayTag _tag in GameplayTagCollection.Instance.Tags)
             {
                 allItems.Add(new GameplayTagTreeViewItem(_tag));
             }
 
-            if (GameplayTagCollection.Instance.tags.Count == 0)
+            if (GameplayTagCollection.Instance.Tags.Count == 0)
             {
                 allItems.Add(new GameplayTagTreeViewItem(new GameplayTag("TempTag", 0, 0, -1, "Temp tag")));
             }
@@ -52,15 +52,15 @@ namespace Halluvision.GameplayTag
         {
             foreach (var _item in _allItems)
             {
-                var _parent = _allItems.Find(i => i.id == _item.tag.parentID);
-                var _children = _allItems.FindAll(i => i.tag.parentID == _item.tag.ID);
+                var _parent = _allItems.Find(i => i.id == _item.tag.ParentID);
+                var _children = _allItems.FindAll(i => i.tag.ParentID == _item.tag.Id);
                 _item.parent = _parent;
                 foreach (var _child in _children)
                 {
                     _item.AddChild(_child);
                 }
             }
-            var _rootChildren = _allItems.FindAll(i => i.tag.depth == 0);
+            var _rootChildren = _allItems.FindAll(i => i.tag.Depth == 0);
             foreach (var _child in _rootChildren)
             {
                 _root.AddChild(_child);

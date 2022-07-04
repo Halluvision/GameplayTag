@@ -1,12 +1,10 @@
 {
-    "name": "halluvision.gameplaytag.Editor",
-    "rootNamespace": "Halluvision.GameplayTag",
+    "name": "halluvision.gameplaytag.Tests",
+    "rootNamespace": "",
     "references": [
         "GUID:2d7d0b50d02ee7f41929e90945f775dd"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

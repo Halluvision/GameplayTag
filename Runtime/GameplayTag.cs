@@ -11,30 +11,33 @@ namespace Halluvision.GameplayTag
     [System.Serializable]
     public class GameplayTag
     {
-        public int ID;
-        public string tag;
-        public int depth;
-        public int parentID;
-        public List<int> childrenIDs;
-        public string comment;
-        public bool inUse;
+        public int Id;
+        public string Tag;
+        public int Depth;
+        public int ParentID;
+        public List<int> ChildrenIDs;
+        public string Comment;
 
-        public GameplayTag()
+        public GameplayTag(string tag, int id, int depth, int parentID, string comment = "")
         {
+            Tag = tag;
+            Id = id;
+            Depth = depth;
+            ParentID = parentID;
+            Comment = comment;
+            ChildrenIDs = new List<int>();
         }
 
-        public GameplayTag(string _tag, int _ID, int _depth, int _parentID, string _comment = "")
+        public bool IsInHierarchy(int parentId)
         {
-            tag = _tag;
-            ID = _ID;
-            depth = _depth;
-            parentID = _parentID;
-            comment = _comment;
-        }
-
-        public void AddChild(int _childID)
-        {
-            childrenIDs.Add(_childID);
+            var newTag = GameplayTagCollection.Instance.GetTagByID(parentId);
+            if (newTag == null)
+                return false;
+            int index = newTag.ChildrenIDs.FindIndex(t => t == Id);
+            if (index == -1)
+                return false;
+            else
+                return true;
         }
     }
 }

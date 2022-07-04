@@ -27,8 +27,7 @@ namespace Halluvision.GameplayTag
 
         void OnEnable()
         {
-            if (GameplayTagFile.CheckIfFileExists())
-                GameplayTagFile.CreateGameplayTagsFile();
+            GameplayTagCollection.ReloadGameplayTags();
 
             if (treeViewState == null)
                 treeViewState = new TreeViewState();
@@ -96,19 +95,19 @@ namespace Halluvision.GameplayTag
         {
             if (GUILayout.Button("Remove Selected Tags"))
             {
-                if (!EditorUtility.DisplayDialog("Are You Sure?", "If this GameplayTag is in use you might get an error later.", "Remove", "Cancel"))
+                if (selectionIds.Count == 0)
                     return;
 
-                if (selectionIds.Count != 1)
+                if (selectionIds.Count > 1)
                 {
                     EditorUtility.DisplayDialog("Error", "Please select one entity each time.", "OK");
                     return;
                 }
 
-                List<int> _childTags = new List<int>();
-                _childTags = treeView.GetItemChildrenIDs(selectionIds[0]);
-                if (_childTags == null)
-                    GameplayTagCollection.Instance.RemoveTag(selectionIds[0]);
+                if (!EditorUtility.DisplayDialog("Are You Sure?", "If this GameplayTag is in use you might get an error later.", "Remove", "Cancel"))
+                    return;
+
+                GameplayTagCollection.Instance.RemoveTag(selectionIds[0]);
             }
         }
     }

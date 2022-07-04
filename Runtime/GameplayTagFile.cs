@@ -10,27 +10,33 @@ namespace Halluvision.GameplayTag
 {
     public class GameplayTagFile
     {
-        const string dir = "/Resources/GameplayTags/";
-        const string fileName = "GameplayTags.txt";
+        const string _dir = "/Resources/GameplayTags/";
+        const string _fileName = "GameplayTags.json";
+
+        public static string FullPath
+        { 
+            get
+            {
+                return Application.dataPath + _dir;
+            }
+        }
 
         public static void CreateGameplayTagsFile()
         {
-            string _fullPath = Application.dataPath + dir;
-            if (!File.Exists(_fullPath + fileName))
+            if (!File.Exists(FullPath + _fileName))
             {
-                Debug.Log("Creating " + dir + fileName + " for first time.");
+                Debug.Log("Creating " + _dir + _fileName + " for first time.");
                 
-                if (!Directory.Exists(_fullPath))
-                    Directory.CreateDirectory(_fullPath);
-                var sr = File.CreateText(_fullPath + fileName);
+                if (!Directory.Exists(FullPath))
+                    Directory.CreateDirectory(FullPath);
+                var sr = File.CreateText(FullPath + _fileName);
                 sr.Close();
             }
         }
 
         public static bool CheckIfFileExists()
         {
-            string _fullPath = Application.dataPath + dir;
-            if (!File.Exists(_fullPath + fileName))
+            if (!File.Exists(FullPath + _fileName))
             {
                 return false;
             }
@@ -39,11 +45,10 @@ namespace Halluvision.GameplayTag
 
         public static bool ReadFromGameplayTagsFile(out string _json)
         {
-            string _fullPath = Application.dataPath + dir;
             if (CheckIfFileExists())
             {
                 _json = "";
-                var sr = File.OpenText(_fullPath + fileName);
+                var sr = File.OpenText(FullPath + _fileName);
                 var line = sr.ReadLine();
                 while (line != null)
                 {
@@ -62,22 +67,23 @@ namespace Halluvision.GameplayTag
 
         public static bool WriteGameplayTagsToFile(string _json, bool _overwrite = false)
         {
-            string _fullPath = Application.dataPath + dir;
             if (!_overwrite)
             {
-                if (File.Exists(_fullPath + fileName))
+                if (File.Exists(FullPath + _fileName))
                 {
-                    Debug.Log(fileName + " already exist.");
+                    Debug.Log(_fileName + " already exist.");
                     return false;
                 }
             }
 
-            if (!Directory.Exists(_fullPath))
-                Directory.CreateDirectory(_fullPath);
+            if (!Directory.Exists(FullPath))
+                Directory.CreateDirectory(FullPath);
 
-            var sr = File.CreateText(_fullPath + fileName);
-            sr.WriteLine(_json);
-            sr.Close();
+            using (var sr = new StreamWriter(File.Create(FullPath + _fileName)))
+            {
+                sr.WriteLine(_json);
+            }
+
             return true;
         }
     }

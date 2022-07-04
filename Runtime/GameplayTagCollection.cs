@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Newtonsoft.Json;
+using System;
 
 namespace Halluvision.GameplayTag
 {
@@ -11,13 +13,22 @@ namespace Halluvision.GameplayTag
         // Delegates
         public delegate void OnTagChanged();
         public static OnTagChanged onTagChanged;
+        
+        [SerializeField]
+        private Dictionary<int, GameplayTag> _tagsDic;
 
-        // public fields
-        public List<GameplayTag> tags;
+        public List<GameplayTag> Tags 
+        { 
+            get 
+            {
+                if (_tagsDic == null)
+                {
+                    _tagsDic = new Dictionary<int, GameplayTag>();
+                }
 
-        // privates
-        List<int> iDs;
-        Dictionary<int, GameplayTag> tagsDic;
+                return _tagsDic.Values.ToList<GameplayTag>();
+            } 
+        }
 
         private static GameplayTagCollection instance = null;
         public static GameplayTagCollection Instance
@@ -37,241 +48,280 @@ namespace Halluvision.GameplayTag
             Initialize();
         }
 
+        public static void ReloadGameplayTags()
+        {
+            Instance.Initialize();
+        }
+
         private void Initialize()
         {
-            tags = new List<GameplayTag>();
             if (GameplayTagFile.CheckIfFileExists())
             {
-                string _json;
-                if (GameplayTagFile.ReadFromGameplayTagsFile(out _json))
-                    LoadFromJson(_json);
+                _tagsDic = new Dictionary<int, GameplayTag>();
+                string json;
+                if (GameplayTagFile.ReadFromGameplayTagsFile(out json))
+                    LoadTagsFromJson(json);
             }
+        }
 
-            iDs = new List<int>();
-            tagsDic = new Dictionary<int, GameplayTag>();
-            foreach (GameplayTag _tag in tags)
+        private string ToJson()
+        {
+            return JsonConvert.SerializeObject(_tagsDic, Formatting.Indented);
+        }
+
+        private void LoadTagsFromJson(string json)
+        {
+            _tagsDic = new Dictionary<int, GameplayTag>();
+            _tagsDic = JsonConvert.DeserializeObject<Dictionary<int, GameplayTag>>(json);
+        }
+
+        private bool IsValidTag(GameplayTag tag)
+        {
+            if (tag == null) return false;
+            return IsValidTag(tag.Id);
+        }
+
+        private bool IsValidTag(int tagId)
+        {
+            if (_tagsDic.ContainsKey(tagId))
+                if (_tagsDic[tagId] == null)
+                    return false;
+            if (!_tagsDic.ContainsKey(tagId)) return false;
+            return true;
+        }
+
+        private List<GameplayTag> Traverse(int tagId)
+        {
+            List<GameplayTag> tags = new List<GameplayTag>();
+            var tag = GetTagByID(tagId);
+            foreach (var childTagId in tag.ChildrenIDs)
             {
-                iDs.Add(_tag.ID);
-                tagsDic.Add(_tag.ID, _tag);
+                if (IsValidTag(childTagId))
+                {
+                    var childTag = GetTagByID(childTagId);
+                    tags.Add(childTag);
+                    tags.AddRange(Traverse(childTagId));
+                }
             }
+            return tags;
         }
 
-        public string ToJson()
+        private void AddTag(GameplayTag tag)
         {
-            return JsonUtility.ToJson(this);
-        }
-
-        public void LoadFromJson(string _json)
-        {
-            if (_json != "{}")
-                JsonUtility.FromJsonOverwrite(_json, this);
+            if (IsValidTag(tag)) return;
+            
+            if (_tagsDic.ContainsKey(tag.Id))
+                _tagsDic[tag.Id] = tag;
             else
-                tags.Clear();
+                _tagsDic.Add(tag.Id, tag);
         }
 
-        public void AddTag(GameplayTag _tag, bool _writeToFile = true)
+        public void AddTag(string gameplayTag, string comment = "")
         {
-            if (!tagsDic.ContainsKey(_tag.ID))
-                tagsDic.Add(_tag.ID, _tag);
+            List<GameplayTag> tags = GetOrCreateGameplayTagsFromString(gameplayTag);
+            ProcessTagsHierarchy(ref tags);
 
-            if (_writeToFile)
+            tags[tags.Count - 1].Comment = comment;
+
+            foreach (var tag in tags)
+            {
+                AddTag(tag);
+            }
+
+            WriteToFile();
+        }
+
+        private void RemoveTag(GameplayTag tag)
+        {
+            if (!IsValidTag(tag)) return;
+            
+            _tagsDic.Remove(tag.Id);
+        }
+
+        public void RemoveTag(int gameplayTagId)
+        {
+            List<GameplayTag> tags = Traverse(gameplayTagId);
+            var mainTag = GetTagByID(gameplayTagId);
+            tags.Add(mainTag);
+
+            if (_tagsDic.ContainsKey(mainTag.ParentID))
+            {
+                var parentTag = GetTagByID(mainTag.ParentID);
+                parentTag.ChildrenIDs.RemoveAll(i => i == gameplayTagId);
+            }
+
+            foreach (var tag in tags)
+            {
+                RemoveTag(tag);
+            }
+
+            WriteToFile();
+        }
+
+        public void RenameTag(int gameplayTagId, string newName)
+        {
+            if (IsValidTag(gameplayTagId))
+            {
+                _tagsDic[gameplayTagId].Tag = newName;
+
                 WriteToFile();
-
-            UpdateTagsArray();
-        }
-
-        public void AddTag(string _gameplayTag, string _comment = "")
-        {
-            List<GameplayTag> _tags = GetOrCreateGameplayTagsFromString(_gameplayTag);
-
-            _tags[_tags.Count - 1].comment = _comment;
-
-            for (int i = 0; i < _tags.Count; i++)
-                AddTag(_tags[i], false);
-
-            WriteToFile();
-            UpdateTagsArray();
-        }
-
-        public void RemoveTag(GameplayTag _tag)
-        {
-            if (tagsDic.ContainsKey(_tag.ID))
-                tagsDic.Remove(_tag.ID);
-
-            WriteToFile();
-            UpdateTagsArray();
-        }
-
-        public void RemoveTag(string _gameplayTag)
-        {
-            List<string> _result = new List<string>();
-            List<int> _ids = ParseStringTag(_gameplayTag, out _result);
-
-            if (tagsDic.ContainsKey(_ids[_ids.Count - 1]))
-                tagsDic.Remove(_ids[_ids.Count - 1]);
-
-            WriteToFile();
-            UpdateTagsArray();
-        }
-
-        public void RemoveTag(int _gameplayTagIds)
-        {
-            if (tagsDic.ContainsKey(_gameplayTagIds))
-                tagsDic.Remove(_gameplayTagIds);
-
-            WriteToFile();
-            UpdateTagsArray();
-        }
-
-        public void RenameTag(int _gameplayTagIds, string _newName)
-        {
-            if (tagsDic.ContainsKey(_gameplayTagIds))
-                tagsDic[_gameplayTagIds].tag = _newName;
-
-            WriteToFile();
-            UpdateTagsArray();
+            }
         }
 
         void WriteToFile()
         {
-            UpdateTagsArray();
             string _json = ToJson();
             GameplayTagFile.WriteGameplayTagsToFile(_json, true);
+            onTagChanged?.Invoke();
         }
 
-        private List<int> ParseStringTag(string _tagToParse, out List<string> _result)
+        /// <summary>
+        /// Take a dot-separated string and checks if it belongs to a previous tag hierarchy.
+        /// The return list of integers indicated the hierarchy until it reaches -1 which means its new tag 
+        /// </summary>
+        /// <param name="tagToParse"></param>
+        /// <param name="result"></param>
+        /// <returns></returns>
+        private List<int> ParseStringTag(string tagToParse, out List<string> result)
         {
-            _result = _tagToParse.Split('.').ToList();
-            int[] _ids = Enumerable.Repeat(-1, _result.Count).ToArray();
+            result = tagToParse.Split('.').ToList();
+            int[] ids = Enumerable.Repeat(-1, result.Count).ToArray();
 
-            if (tags != null)
+            for (int i = 0; i < result.Count; i++)
             {
-                for (int i = 0; i < _result.Count; i++)
-                {
-                    if (i > 0 && _ids[i - 1] == -1)
-                        break;
+                if (i > 0 && ids[i - 1] == -1)
+                    break;
 
-                    foreach (GameplayTag _tag in tags)
+                foreach (GameplayTag _tag in _tagsDic.Values)
+                {
+                    if (i == 0)
                     {
-                        if (i == 0)
+                        if (_tag.Tag == result[i] && _tag.Depth == i)
                         {
-                            if (_tag.tag == _result[i] && _tag.depth == i)
-                            {
-                                _ids[i] = _tag.ID;
-                                break;
-                            }
-                        }
-                        else if (_tag.tag == _result[i] && _tag.depth == i && tagsDic[_tag.parentID].tag == _result[i - 1])
-                        {
-                            _ids[i] = _tag.ID;
+                            ids[i] = _tag.Id;
                             break;
                         }
+                    }
+                    else if (_tag.Tag == result[i] && _tag.Depth == i && _tagsDic[_tag.ParentID].Tag == result[i - 1])
+                    {
+                        ids[i] = _tag.Id;
+                        break;
                     }
                 }
             }
 
-            return new List<int>(_ids);
+            return new List<int>(ids);
         }
 
-        private List<GameplayTag> GetOrCreateGameplayTagsFromString(string _tagToParse)
+        /// <summary>
+        /// Create unprocessed tags list from a dot-separated string
+        /// </summary>
+        /// <param name="tagToParse"></param>
+        /// <returns></returns>
+        private List<GameplayTag> GetOrCreateGameplayTagsFromString(string tagToParse)
         {
-            List<int> _ids;
-            List<string> _result;
-            _ids = ParseStringTag(_tagToParse, out _result);
+            List<int> ids;
+            List<string> result;
+            ids = ParseStringTag(tagToParse, out result);
 
-            GameplayTag _root = new GameplayTag(null, 0, -1, -1, "Root");
-            List<GameplayTag> _resultTags = new List<GameplayTag>();
-            for (int i = 0; i < _result.Count; i++)
+            List<GameplayTag> resultTags = new List<GameplayTag>();
+            for (int i = 0; i < result.Count; i++)
             {
-                if (_ids[i] != -1)
+                if (ids[i] != -1)
                 {
-                    _resultTags.Add(tagsDic[_ids[i]]);
+                    resultTags.Add(_tagsDic[ids[i]]);
+                    continue;
                 }
-                else if (i > 0)
-                {
-                    _ids[i] = GenerateNewID();
-                    _resultTags.Add(new GameplayTag(_result[i], _ids[i], i, _ids[i - 1]));
-                }
-                else
-                {
-                    _ids[i] = GenerateNewID();
-                    _resultTags.Add(new GameplayTag(_result[i], _ids[i], i, 0));
-                }
+
+                ids[i] = GetAvailableTagID();
+                resultTags.Add(new GameplayTag(result[i], ids[i], i, -1));
             }
 
-            return _resultTags;
+            return resultTags;
         }
 
-        int GenerateNewID()
+        /// <summary>
+        /// Find next available integer in tags ids
+        /// </summary>
+        /// <returns></returns>
+        int GetAvailableTagID()
         {
+            var keys = _tagsDic.Keys;
+            int id = -1;
             for (int i = 1; i < Mathf.Infinity; i++)
-                if (!iDs.Contains(i))
+                if (!keys.Contains(i))
                 {
-                    iDs.Add(i);
-                    return i;
+                    id = i;
+                    _tagsDic.Add(id, null);
+                    return id;
                 }
 
             return -1;
         }
 
-        private void UpdateTagsArray()
+        /// <summary>
+        /// Add children and parent ids to new tags
+        /// </summary>
+        /// <param name="gameplayTags"></param>
+        private void ProcessTagsHierarchy(ref List<GameplayTag> gameplayTags)
         {
-            tags = tagsDic.Values.ToList();
-            onTagChanged?.Invoke();
+            int length = gameplayTags.Count;
+            for (int i = 0; i < length; i++)
+            {
+                if (i < length - 1)
+                {
+                    gameplayTags[i].ChildrenIDs.Add(gameplayTags[i + 1].Id);
+                }
+                if (i > 0 && gameplayTags[i].ParentID == -1)
+                {
+                    gameplayTags[i].ParentID = gameplayTags[i - 1].Id;
+                }
+            }
         }
 
-        public GameplayTag GetTagByID(int _gameplayTagID)
+        public GameplayTag GetTagByID(int gameplayTagID)
         {
-            if (tagsDic.ContainsKey(_gameplayTagID))
-                return tagsDic[_gameplayTagID];
+            if (_tagsDic.ContainsKey(gameplayTagID))
+                return _tagsDic[gameplayTagID];
             return null;
         }
 
-        public int GetTagIDByString(string _gameplayTagString)
+        public int GetTagIDByString(string gameplayTagString)
         {
-            foreach (var _pair in tagsDic)
+            foreach (var _pair in _tagsDic)
             {
-                if (_pair.Value.tag == _gameplayTagString)
+                if (_pair.Value.Tag == gameplayTagString)
                     return _pair.Key;
             }
             return -1;
         }
 
-        public string GetTagStringHierarchy(int _tagId)
+        public string GetTagStringHierarchy(int tagId)
         {
-            if (!tagsDic.ContainsKey(_tagId))
+            if (!_tagsDic.ContainsKey(tagId))
                 return "";
 
-            GameplayTag _tag = tagsDic[_tagId];
+            GameplayTag tag = _tagsDic[tagId];
 
-            if (_tag.depth == 0)
-                return _tag.tag;
+            if (tag.Depth == 0)
+                return tag.Tag;
 
-            int[] _parentsIds = new int[_tag.depth];
-            int _currentParentIds = _tag.parentID;
+            int[] parentsIds = new int[tag.Depth];
+            int currentParentIds = tag.ParentID;
 
-            for (int i = 0; i < _tag.depth; i++)
+            for (int i = 0; i < tag.Depth; i++)
             {
-                _parentsIds[i] = tagsDic[_currentParentIds].ID;
-                _currentParentIds = tagsDic[_parentsIds[i]].parentID;
+                parentsIds[i] = _tagsDic[currentParentIds].Id;
+                currentParentIds = _tagsDic[parentsIds[i]].ParentID;
             }
 
-            string _result = "";
-            for (int i = _tag.depth - 1; i >= 0; i--)
+            string result = "";
+            for (int i = tag.Depth - 1; i >= 0; i--)
             {
-                _result += tagsDic[_parentsIds[i]].tag + ".";
+                result += _tagsDic[parentsIds[i]].Tag + ".";
             }
-            _result += _tag.tag;
-            return _result;
-        }
-
-        public void SetTagInUse(int _tagId, bool _inUse)
-        {
-            if (tagsDic.ContainsKey(_tagId))
-            {
-                tagsDic[_tagId].inUse = _inUse;
-                WriteToFile();
-            }
+            result += tag.Tag;
+            return result;
         }
     }
 }

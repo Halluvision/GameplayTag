@@ -12,9 +12,9 @@ namespace Halluvision.GameplayTag
         public GameplayTagTreeViewItem(GameplayTag _tag)
         {
             tag = _tag;
-            id = _tag.ID;
-            depth = _tag.depth;
-            displayName = _tag.tag;
+            id = _tag.Id;
+            depth = _tag.Depth;
+            displayName = _tag.Tag;
         }
     }
 }
