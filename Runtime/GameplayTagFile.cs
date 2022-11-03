@@ -21,7 +21,7 @@ namespace Halluvision.GameplayTag
             }
         }
 
-        public static void CreateGameplayTagsFile()
+        private static void CreateGameplayTagsFile()
         {
             if (!File.Exists(FullPath + _fileName))
             {
@@ -34,7 +34,7 @@ namespace Halluvision.GameplayTag
             }
         }
 
-        public static bool CheckIfFileExists()
+        internal static bool CheckIfFileExists()
         {
             if (!File.Exists(FullPath + _fileName))
             {
@@ -43,7 +43,7 @@ namespace Halluvision.GameplayTag
             return true;
         }
 
-        public static bool ReadFromGameplayTagsFile(out string _json)
+        internal static bool ReadFromGameplayTagsFile(out string _json)
         {
             if (CheckIfFileExists())
             {
@@ -55,6 +55,7 @@ namespace Halluvision.GameplayTag
                     _json += line;
                     line = sr.ReadLine();
                 }
+                sr.Close();
                 return true;
             }
             else
@@ -65,7 +66,7 @@ namespace Halluvision.GameplayTag
             }
         }
 
-        public static bool WriteGameplayTagsToFile(string _json, bool _overwrite = false)
+        internal static bool WriteGameplayTagsToFile(string _json, bool _overwrite = false)
         {
             if (!_overwrite)
             {

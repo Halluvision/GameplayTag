@@ -279,6 +279,16 @@ namespace Halluvision.GameplayTag
             }
         }
 
+        private void ValidateAllTags()
+        {
+            foreach (var tag in _tagsDic.Values)
+            {
+                if (_tagsDic.ContainsKey(tag.ParentID))
+                    if (!_tagsDic[tag.ParentID].ChildrenIDs.Contains(tag.Id))
+                        _tagsDic[tag.ParentID].ChildrenIDs.Add(tag.Id);
+            }
+        }
+
         public GameplayTag GetTagByID(int gameplayTagID)
         {
             if (_tagsDic.ContainsKey(gameplayTagID))
