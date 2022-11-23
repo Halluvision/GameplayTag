@@ -108,7 +108,11 @@ namespace Halluvision.GameplayTag
 
         private void AddTag(GameplayTag tag)
         {
-            if (IsValidTag(tag)) return;
+            if (IsValidTag(tag))
+            {
+                _tagsDic[tag.Id] = tag;
+                return;
+            }
             
             if (_tagsDic.ContainsKey(tag.Id))
                 _tagsDic[tag.Id] = tag;
@@ -118,7 +122,7 @@ namespace Halluvision.GameplayTag
 
         public void AddTag(string gameplayTag, string comment = "")
         {
-            List<GameplayTag> tags = GetOrCreateGameplayTagsFromString(gameplayTag);
+            List<GameplayTag> tags = ParseStringTag(gameplayTag);
             ProcessTagsHierarchy(ref tags);
 
             tags[tags.Count - 1].Comment = comment;
@@ -182,62 +186,39 @@ namespace Halluvision.GameplayTag
         /// <param name="tagToParse"></param>
         /// <param name="result"></param>
         /// <returns></returns>
-        private List<int> ParseStringTag(string tagToParse, out List<string> result)
+        private List<GameplayTag> ParseStringTag(string tagToParse)
         {
-            result = tagToParse.Split('.').ToList();
-            int[] ids = Enumerable.Repeat(-1, result.Count).ToArray();
-
+            List<string> result = tagToParse.Split('.').ToList();
+            GameplayTag[] outTags = new GameplayTag[result.Count];
             for (int i = 0; i < result.Count; i++)
             {
-                if (i > 0 && ids[i - 1] == -1)
-                    break;
+                outTags[i] = new GameplayTag("", -1, -1, -1, "");
+                outTags[i].Tag = result[i];
+                outTags[i].Depth = i;
+                outTags[i].ChildrenIDs = new List<int>();
+            }
 
-                foreach (GameplayTag _tag in _tagsDic.Values)
+            bool isInDict = _tagsDic.Values.Any(t => t.Depth == 0 && t.Tag == outTags[0].Tag);
+            if (!isInDict)
+                return new List<GameplayTag>(outTags);
+
+            var parentTag = _tagsDic.Values.First(t => t.Depth == 0 && t.Tag == outTags[0].Tag);
+            outTags[0] = parentTag;
+
+            GameplayTag foundedTag = parentTag;
+            for (int j = 1; j < outTags.Length; j++)
+            {
+                foreach (int id in outTags[j - 1].ChildrenIDs)
                 {
-                    if (i == 0)
+                    if (_tagsDic[id].Tag == outTags[j].Tag)
                     {
-                        if (_tag.Tag == result[i] && _tag.Depth == i)
-                        {
-                            ids[i] = _tag.Id;
-                            break;
-                        }
-                    }
-                    else if (_tag.Tag == result[i] && _tag.Depth == i && _tagsDic[_tag.ParentID].Tag == result[i - 1])
-                    {
-                        ids[i] = _tag.Id;
+                        outTags[j] = _tagsDic[id];
                         break;
                     }
                 }
             }
 
-            return new List<int>(ids);
-        }
-
-        /// <summary>
-        /// Create unprocessed tags list from a dot-separated string
-        /// </summary>
-        /// <param name="tagToParse"></param>
-        /// <returns></returns>
-        private List<GameplayTag> GetOrCreateGameplayTagsFromString(string tagToParse)
-        {
-            List<int> ids;
-            List<string> result;
-            ids = ParseStringTag(tagToParse, out result);
-
-            List<GameplayTag> resultTags = new List<GameplayTag>();
-            for (int i = 0; i < result.Count; i++)
-            {
-                if (ids[i] != -1)
-                {
-                    resultTags.Add(_tagsDic[ids[i]]);
-                    continue;
-                }
-
-                ids[i] = GetAvailableTagID();
-                resultTags.Add(new GameplayTag(result[i], ids[i], i, -1));
-            }
-
-            return resultTags;
+            return new List<GameplayTag>(outTags);
         }
 
         /// <summary>
@@ -265,16 +246,15 @@ namespace Halluvision.GameplayTag
         /// <param name="gameplayTags"></param>
         private void ProcessTagsHierarchy(ref List<GameplayTag> gameplayTags)
         {
-            int length = gameplayTags.Count;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < gameplayTags.Count; i++)
             {
-                if (i < length - 1)
-                {
-                    gameplayTags[i].ChildrenIDs.Add(gameplayTags[i + 1].Id);
-                }
-                if (i > 0 && gameplayTags[i].ParentID == -1)
+                if (gameplayTags[i].Id == -1)
+                    gameplayTags[i].Id = GetAvailableTagID();
+
+                if (i > 0)
                 {
                     gameplayTags[i].ParentID = gameplayTags[i - 1].Id;
+                    gameplayTags[i - 1].ChildrenIDs.Add(gameplayTags[i].Id);
                 }
             }
         }
